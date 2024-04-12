@@ -19,7 +19,7 @@ export default function Chat () {
   // const { openSignIn, session } = useClerk()
 
   const ref = useRef<HTMLDivElement>(null)
-  const { messages, input, handleInputChange, handleSubmit, isLoading, error } =
+  const { messages, input, handleInputChange, handleSubmit, isLoading, error, append } =
     useChat({
       initialMessages: [
         {
@@ -127,7 +127,7 @@ export default function Chat () {
             />
               
             {/* Mic button */}
-            <Microphone />  
+            <Microphone callback={append} />
 
             {/* Submit button */}
             <Button

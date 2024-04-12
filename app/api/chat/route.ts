@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 		modelName: 'llama2-70b-4096',
 	})
 	const prompt = ChatPromptTemplate.fromMessages([
-		["system", "You are a master of programing. You are to assist me in solving a coding problem. I will code and you will construct a sub-goals hierarchy based on my code."],
+		["system", "You are a master of programing that assists me in coding interview by giving short answers."],
 		["human", "{input}"],
 		]);
 	const outputStringParser = new StringOutputParser();

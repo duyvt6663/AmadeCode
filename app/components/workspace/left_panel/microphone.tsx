@@ -4,15 +4,21 @@ LiveClient,
 LiveTranscriptionEvents,
 createClient,
 } from "@deepgram/sdk";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQueue } from "@uidotdev/usehooks";
 // import Dg from "./dg.svg";
 import Recording from "./recording.svg";
 import { Button } from '@/app/components/ui/button'
 import { MicIcon, MicOffIcon, SendHorizontalIcon } from "lucide-react";
+import { List } from "postcss/lib/list";
 // import Image from "next/image";
 
-export default function Microphone() {
+/**
+ * Represents a Microphone component.
+ * @param callback - The callback function to handle the transcription result.
+ * @returns The Microphone component.
+ */
+export default function Microphone(callback: any) {
   const { add, remove, first, size, queue } = useQueue<any>([]);
   const [apiKey, setApiKey] = useState<CreateProjectKeyResponse | null>();
   const [connection, setConnection] = useState<LiveClient | null>();
@@ -23,14 +29,14 @@ export default function Microphone() {
   const [micOpen, setMicOpen] = useState(false);
   const [microphone, setMicrophone] = useState<MediaRecorder | null>();
   const [userMedia, setUserMedia] = useState<MediaStream | null>();
-  const [caption, setCaption] = useState<string | null>();
+  const caption = useRef<string>("");
 
   const toggleMicrophone = useCallback(async () => {
     if (microphone && userMedia) {
+      microphone.stop();
       setUserMedia(null);
       setMicrophone(null);
 
-      microphone.stop();
     } else {
       const userMedia = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -57,7 +63,7 @@ export default function Microphone() {
   }, [add, microphone, userMedia]);
 
   useEffect(() => {
-    if (!apiKey) {
+    if (micOpen && !apiKey) {
       console.log("getting a new api key");
       fetch("/api/key", { cache: "no-store" })
         .then((res) => res.json())
@@ -71,16 +77,22 @@ export default function Microphone() {
           console.error(e);
         });
     }
-  }, [apiKey]);
+  }, [micOpen]);
 
   useEffect(() => {
     if (apiKey && "key" in apiKey) {
       console.log("connecting to deepgram");
       const deepgram = createClient(apiKey?.key ?? "");
       const connection = deepgram.listen.live({
-        model: "nova",
+        model: "nova-2",
         interim_results: true,
-        smart_format: true,
+        // smart_format: true,
+        punctuate: true,
+        sample_rate: 16000,
+        channels: 1,
+        endpointing: 1000
+        // language: "en-US",
+        // encoding: "linear16"
       });
 
       connection.on(LiveTranscriptionEvents.Open, () => {
@@ -96,13 +108,28 @@ export default function Microphone() {
       });
 
       connection.on(LiveTranscriptionEvents.Transcript, (data) => {
-        const words = data.channel.alternatives[0].words;
-        const caption = words
-          .map((word: any) => word.punctuated_word ?? word.word)
-          .join(" ");
-        if (caption !== "") {
-          setCaption(caption);
-          console.log(caption)
+
+        if (data.is_final){
+          const words = data.channel.alternatives[0].words.map(
+                          (word: any) => word.punctuated_word ?? word.word).join(" ");
+
+          if (words.length > 0) {
+            caption.current = caption.current.concat(" ", words);
+            console.log("interim caption", caption.current);
+          }
+
+          if (data.speech_final && caption.current !== ""){
+            console.log("final caption", caption.current);
+
+            // send the caption to the chatbot
+            callback({
+              role: "user",
+              content: caption.current,
+            });
+
+            // clear the caption
+            caption.current = "";
+          }
         }
       });
 
